@@ -25,6 +25,11 @@ interface CheckoutData {
   paymentData?: any;
 }
 
+/** Desconto aplicado a pagamentos via PIX. Deve bater com `site.pixDiscount` no front. */
+const PIX_DISCOUNT_RATE = Number(process.env.PIX_DISCOUNT_RATE ?? '0.05');
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export class OrderService {
   async createOrder(data: CheckoutData) {
     return prisma.$transaction(async (tx) => {
@@ -88,8 +93,10 @@ export class OrderService {
         }
       });
 
-      // 4. Create Order
+      // 4. Create Order (desconto PIX calculado aqui, nunca confiado ao front)
       const orderNumber = `VR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const discountAmount = data.paymentMethod === 'PIX' ? round2(totalAmount * PIX_DISCOUNT_RATE) : 0;
+      const amountToCharge = round2(totalAmount - discountAmount);
 
       const order = await tx.order.create({
         data: {
@@ -97,6 +104,7 @@ export class OrderService {
           customer_id: customer.id,
           address_id: address.id,
           total_amount: totalAmount,
+          discount_amount: discountAmount,
           payment_method: data.paymentMethod,
           status: 'PENDING',
           items: {
@@ -110,7 +118,7 @@ export class OrderService {
 
       if (data.paymentMethod === 'PIX') {
         const paymentData = {
-          transaction_amount: totalAmount,
+          transaction_amount: amountToCharge,
           description: `Pedido ${orderNumber} - Visão de Rua`,
           payment_method_id: 'pix',
           payer: {
@@ -147,7 +155,7 @@ export class OrderService {
          // Logic for Credit Card processing
          const mpPayment = await paymentClient.create({
             body: {
-              transaction_amount: totalAmount,
+              transaction_amount: amountToCharge,
               token: data.paymentData?.token,
               description: `Pedido ${orderNumber} - Visão de Rua`,
               installments: data.paymentData?.installments || 1,
@@ -182,6 +190,9 @@ export class OrderService {
         orderId: order.id,
         orderNumber: order.order_number,
         status: order.status,
+        totalAmount,
+        discountAmount,
+        amountToCharge,
         paymentResult,
       };
     });
