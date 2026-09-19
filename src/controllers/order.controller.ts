@@ -45,7 +45,7 @@ export class OrderController {
     } catch (error: any) {
       console.error(error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       res.status(500).json({ error: error.message || 'Internal server error' });
     }
@@ -53,7 +53,7 @@ export class OrderController {
 
   async getStatus(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const status = await this.orderService.getOrderStatus(id);
       
       if (!status) {

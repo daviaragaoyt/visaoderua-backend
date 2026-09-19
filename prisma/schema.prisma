@@ -5,9 +5,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Postgres hospedado (Neon, Supabase, Vercel Postgres…). SQLite em arquivo
+// não funciona no Vercel: o sistema de arquivos da função é somente leitura.
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Product {
